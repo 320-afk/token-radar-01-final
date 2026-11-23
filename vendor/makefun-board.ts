@@ -143,7 +143,7 @@ function languageOf(path: string): string {
  */
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
-  if (value === 'number') {
+  if (typeof value === 'number') {
     if (!Number.isFinite(value)) throw new TypeError(`canonicalJson: ${value} is not a finite number`);
     return JSON.stringify(value);
   }
@@ -258,10 +258,10 @@ export function buildDossier(dir: string, caps: DossierCaps): Uint8Array {
   if (shotNames.length === 0) throw new DossierError('buildDossier: screenshots/ holds no image: the first is the cover');
   if (shotNames.length > maxImages.n) throw new DossierError(`buildDossier: screenshots/ holds ${shotNames.length} files, over the ${maxImages.n} ${maxImages.whose}`);
   const images = shotNames.map((name) => {
-    if (!PLAIN_NAME.test(name)) throw new DossierError(`screenshots/${name}: a name is letters, digits and . _ -, 1 to 128 characters, not starting with . or -`);
+    if (!PLAIN_NAME.test(name)) throw new DossierError(`buildDossier: screenshots/${name}: a name is letters, digits and . _ -, 1 to 128 characters, not starting with . or -`);
     const bytes = readCapped(join(shotsDir, name), maxImageBytes.n, `screenshots/${name}`);
     const media_type = opensWith(bytes, PNG_MAGIC) ? 'image/png' : opensWith(bytes, JPEG_MAGIC) ? 'image/jpeg' : null;
-    if (media_type === null) throw new DossierError(`screenshots/${name} is neither a PNG nor a JPEG`);
+    if (media_type === null) throw new DossierError(`buildDossier: screenshots/${name} is neither a PNG nor a JPEG`);
     return { name, media_type, sha256: sha256Hex(bytes), base64: Buffer.from(bytes).toString('base64') };
   });
 

@@ -119,7 +119,7 @@
         '<td>' + esc(r.name) + ' <span class="tag">' + esc(r.slug) + '</span>' +
         (watch[r.slug] ? ' <span class="tag wl">watchlist</span>' : '') + '</td>' +
         '<td>' + esc(r.category || 'Unclassified') + '</td>' +
-        '<td>' + esc(r.chains.slice(0, 2).join(', ')) + (r.chains.length > 2 ? ' —' : '') + '</td>' +
+        '<td>' + esc(r.chains.slice(0, 2).join(', ')) + (r.chains.length > 2 ? ' …' : '') + '</td>' +
         '<td>' + (r.token_status === 'records_no_token'
           ? '<span class="tag wl">records no token</span>'
           : '<span class="tag live">token recorded</span>') + '</td>' +
@@ -152,38 +152,75 @@
       var m = r.model || {};
       var clipped = r.change_7d !== null &&
         (r.change_7d > (m.growth_cap ?? C.growth_cap) || r.change_7d < (m.growth_floor ?? C.growth_floor));
-      s += '<h3>Implied-value model</h3><dl>' +
+      s += '<h3>Implied-value formula components</h3><dl>' +
         '<dt>TVL (snapshot)</dt><dd>' + money(r.tvl_usd) + '</dd>' +
-        '<dt>7d change raw</dt><dd>' + pct(r.change_7d) + (clipped ? ' (clipped before model)' : '') + '</dd>' +
-        '<dt>Growth multiple</dt><dd>' + num(m.growth_mult) + '</dd>' +
-        '<dt>Age / maturity</dt><dd>' + short(r.age_days) + ' days / ' + short(m.maturity) +
-          (r.age_imputed ? ' (age imputed)' : '') + '</dd>' +
-        '<dt>Slug watchlist</dt><dd>' + (watch[r.slug] ? 'yes' : 'no, early discovery') + '</dd>' +
-        '<dt>Implied value</dt><dd>' + money(r.implied_value_usd) + '</dd>' +
-        '</dl><pre>' + esc(JSON.stringify(m)) + '</pre>';
+        '<dt>tvl_exponent (assumption)</dt><dd>' + num(m.tvl_exponent) + '</dd>' +
+        '<dt>scale (assumption)</dt><dd>' + num(m.scale) + '</dd>' +
+        '<dt>growth_weight (assumption)</dt><dd>' + num(m.growth_weight) + '</dd>' +
+        '<dt>growth_exponent (assumption)</dt><dd>' + num(m.growth_exponent) + '</dd>' +
+        '<dt>raw 7d (change_7d)</dt><dd>' + (r.change_7d === null ? 'null' : pct(r.change_7d)) + '</dd>' +
+        '<dt>capped growth pct (growth_pct)</dt><dd>' + num(r.growth_pct) + '%' +
+        (r.growth_imputed ? ' (change_7d was null → 0)' : '') +
+        (clipped ? ' (raw clipped to growth_floor/growth_cap before the exponent)' : '') + '</dd>' +
+        '<dt>growth factor (growth_mult)</dt><dd>' + num(r.growth_mult) + '</dd>' +
+        '<dt>growth_floor (assumption)</dt><dd>' + num(m.growth_floor) + '</dd>' +
+        '<dt>growth_cap (assumption)</dt><dd>' + num(m.growth_cap) + '</dd>' +
+        '<dt>listed_at (raw)</dt><dd>' + (r.listed_at === null ? 'null' : esc(r.listed_at)) + '</dd>' +
+        '<dt>age_days</dt><dd>' + (r.age_days === null
+          ? 'null → ' + num(m.unknown_age_days) + ' assumed' : String(r.age_days)) + '</dd>' +
+        '<dt>maturity</dt><dd>' + num(r.maturity) + '</dd>' +
+        '<dt>maturity_floor (assumption)</dt><dd>' + num(m.maturity_floor) + '</dd>' +
+        '<dt>maturity_range (assumption)</dt><dd>' + num(m.maturity_range) + '</dd>' +
+        '<dt>maturity_days (assumption)</dt><dd>' + num(m.maturity_days) + '</dd>' +
+        '<dt>unknown_age_days (assumption)</dt><dd>' + num(m.unknown_age_days) + '</dd>' +
+        '<dt>implied value</dt><dd>' + money(r.implied_value_usd) + '</dd>' +
+        '</dl>';
+      s += '<h3>Raw and imputed fields</h3><dl>' +
+        '<dt>raw 7d (change_7d)</dt><dd>' + (r.change_7d === null ? 'null' : pct(r.change_7d)) + '</dd>' +
+        '<dt>capped growth pct (growth_pct)</dt><dd>' + num(r.growth_pct) + '%' + '</dd>' +
+        '<dt>listed_at (raw)</dt><dd>' + (r.listed_at === null ? 'null' : esc(r.listed_at)) + '</dd>' +
+        '<dt>age_days</dt><dd>' + (r.age_days === null ? 'null' : String(r.age_days)) + '</dd>' +
+        '<dt>growth_imputed</dt><dd>' + String(!!r.growth_imputed) + '</dd>' +
+        '<dt>age_imputed</dt><dd>' + String(!!r.age_imputed) + '</dd>' +
+        '</dl>';
+      s += '<h3>Model subobject</h3><pre>' + esc(JSON.stringify(m, null, 2)) + '</pre>';
+      s += '<h3>Farm plan — cost, time, risk</h3><ol>';
+      r.farm.forEach(function (t) { s += '<li>' + esc(t) + '</li>'; });
+      s += '</ol>';
+      if (r.farm.length === 0) s += '<p>Farm steps are listed in board.json for this row.</p>';
     }
-    s += '<h3>Farm plan — 6 steps, assumptions and risks</h3><ol>';
-    r.farm.forEach(function (step) { s += '<li>' + esc(step) + '</li>'; });
-    s += '</ol>';
     d.innerHTML = s;
-    d.querySelector('#dc').addEventListener('click', function () { d.hidden = true; });
+    byId('dc').addEventListener('click', function () { d.hidden = true; });
+    d.scrollIntoView();
   }
 
-  function anchorList() {
-    var ul = byId('anchors-body');
-    ul.textContent = '';
-    live.slice(0, 10).forEach(function (r) {
+  function renderAnchors() {
+    var top = live.slice().sort(function (a, b) {
+      return (b.mcap_usd || 0) - (a.mcap_usd || 0);
+    }).slice(0, 8);
+    var box = byId('anchors-body');
+    box.textContent = '';
+    top.forEach(function (r) {
       var li = document.createElement('li');
-      li.textContent = r.name + ' — market cap ' + money(r.mcap_usd) + ', TVL ' + money(r.tvl_usd);
-      ul.appendChild(li);
+      li.textContent = r.name + ' (' + r.slug + ') · ' + (r.category || 'Unclassified') +
+        ' · snapshot mcap ' + money(r.mcap_usd) + ' · no implied value';
+      box.appendChild(li);
     });
   }
+  renderAnchors();
 
-  document.querySelectorAll('#board th[data-key]').forEach(function (th) {
+  byId('filtered').addEventListener('click', function () {
+    byId('q').value = ''; byId('cat').value = ''; byId('chain').value = '';
+    byId('status').value = 'records_no_token'; byId('min').value = '10000000';
+    sortKey = 'implied_value_usd'; sortDir = -1;
+    render();
+    byId('board').scrollIntoView();
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('th[data-key]'), function (th) {
     th.addEventListener('click', function () {
       var key = th.getAttribute('data-key');
-      if (sortKey === key) sortDir = -sortDir;
-      else { sortKey = key; sortDir = 1; }
+      if (key === sortKey) sortDir = -sortDir; else { sortKey = key; sortDir = 1; }
       render();
     });
   });
@@ -191,16 +228,30 @@
     byId(id).addEventListener('input', render);
     byId(id).addEventListener('change', render);
   });
-  byId('filtered').addEventListener('click', function () {
-    byId('status').value = 'records_no_token';
-    byId('min').value = String(Math.max(0, Math.round((data.floor_usd || 0) / 1000000)) * 1000000);
-    render();
-  });
   byId('reset').addEventListener('click', function () {
-    ['q', 'cat', 'chain', 'status', 'min'].forEach(function (id) { byId(id).value = ''; });
+    byId('q').value = ''; byId('cat').value = ''; byId('chain').value = '';
+    byId('status').value = ''; byId('min').value = '';
     sortKey = 'rank'; sortDir = 1; render();
   });
-  byId('dc') && byId('dc').addEventListener('click', function () { byId('detail').hidden = true; });
-  anchorList();
   render();
+
+  // Hash routes make a board, detail or filtered state reproducible from this exact file,
+  // including after a hash-only navigation in an already open page.
+  function applyHash() {
+    var hash = decodeURIComponent(location.hash.replace(/^#/, ''));
+    if (hash.indexOf('detail/') === 0) {
+      var slug = hash.slice(7);
+      var hit = all.filter(function (r) { return r.slug === slug; })[0];
+      if (hit) detail(hit);
+    } else if (hash.indexOf('view/') === 0) {
+      var v = hash.slice(5);
+      var opts = byId('status').options;
+      for (var i = 0; i < opts.length; i++) {
+        if (opts[i].value === v) { byId('status').value = v; break; }
+      }
+      render();
+    }
+  }
+  window.addEventListener('hashchange', applyHash);
+  applyHash();
 })();
