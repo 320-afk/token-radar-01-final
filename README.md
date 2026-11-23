@@ -1,3 +1,1 @@
-# token-radar-01 final candidate
-
-Public submission repository for the make.fun token-radar-01 bounty.
+Momentum-based token launch radar built from the competition snapshot: 178 pre-token protocols, transparent implied values, six-step farm plans, filtered dashboard views and deterministic screenshots.
